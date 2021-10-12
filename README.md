@@ -1,7 +1,6 @@
 # Deep Implicit Surface Point Prediction Networks
 ## [Project Page](https://sites.google.com/view/cspnet) | [Paper](https://arxiv.org/abs/2106.05779)
-<img src="single_shape_csp/media/lion_512.gif" alt="Lion" width="256" height="256"/>
-<img src="single_shape_csp/media/rosa_512.gif" alt="Rose" width="256" height="256"/>
+ <img src="single_shape_csp/media/lion_512.gif" alt="Lion" width="256" height="256"/>  <img src="single_shape_csp/media/rosa_512.gif" alt="Rose" width="256" height="256"/> 
 <!--![Lion](single_shape_csp/media/lion_512.gif =256x256)
 ![Rosa](single_shape_csp/media/rosa_512.gif =256x256)-->
 
