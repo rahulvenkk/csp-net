@@ -26,17 +26,22 @@ config = config.Config()
 parser = argparse.ArgumentParser(description='Get multi view depth and normal maps')
 parser.add_argument('-ename', '--exp_name', type=str, help='Expt name')
 parser.add_argument('-infile', '--infile', type=str, help='Input 3D shape as .off file')
+parser.add_argument('-resume', '--resume', type=int, default='-1', help='Checkpoint epoch number to load from')
 
 args = parser.parse_args()
 config.exp_name = args.exp_name
 config.mesh_file_path = args.infile
 
+config.make_paths()
+
+if args.resume > 0:
+    config.load_weights_path = config.weights_path + '/' + str(args.resume) + '.pth'
 ######################################################################################################################
 '''
 Prepare Data
 '''
 file_path = config.mesh_file_path
-
+print(file_path)
 trimesh_mesh = trimesh.load_mesh(file_path, process=False)
 
 o3d_mesh, point_cloud, normals = mesh.get_sampled_points_normals(file_path, flip_axis=config.flip_axis)
@@ -50,12 +55,6 @@ print("Nearest neighbour creation done")
 '''
 Create path for saving weights
 '''
-if not os.path.exists('./weights/'):
-    os.system('mkdir ' + './weights/')
-
-if not os.path.exists('./videos/'):
-    os.system('mkdir ' + './videos/')
-
 if not os.path.exists(config.weights_path):
     os.system('mkdir ' + config.weights_path)
 
@@ -71,12 +70,7 @@ initialize net
 net = Net().cuda()
 net.apply(init_weights)
 
-net.train()
-
 # Load weights if needed
-if config.load_weights:
-    print("Loading weights from ", config.load_weights_path)
-    net.load_state_dict(torch.load(config.load_weights_path))
 
 ######################################################################################################################
 '''
@@ -88,6 +82,18 @@ Create optimizers
 optim = torch.optim.Adam(net.parameters(), lr=0.0001)
 
 ######################################################################################################################
+'''
+Load Weights and optimizer state if needed
+'''
+start_epoch = -1
+if args.resume > 0:
+    print("Loading weights from ", config.load_weights_path)
+    checkpoint = torch.load(config.load_weights_path)
+    net.load_state_dict(checkpoint['net'])
+    optim.load_state_dict(checkpoint['opt'])
+    start_epoch = checkpoint['epoch']
+
+net.train()
 
 # Delete Logs if needed
 if config.delete_logs:
@@ -96,7 +102,7 @@ if config.delete_logs:
 
 
 #save configs
-os.system('cp pt_pred/config.py ' + config.exp_path + '/')
+os.system('cp ./single_shape_csp/pt_pred/config.py ' + config.exp_path + '/')
 ######################################################################################################################
 '''
 Initialize the train and val writers
@@ -115,9 +121,9 @@ prob_dists = inv_dists / np.sum(inv_dists)
 ######################################################################################################################
 # ReSampling GT and associated visualization
 if config.resample:
-    pts_sample, dSample, nSample, nnSample = mesh.get_sample_points(input_points, nn, config.res ** 2, prob_dists)
+    pts_sample, _, _, nnSample = mesh.get_sample_points(input_points, nn, config.res ** 2, prob_dists)
 else:
-    pts_sample, dSample, nSample, nnSample = input_points, sDF, nF, nn
+    pts_sample, _, _, nnSample = input_points, sDF, nF, nn
 
 ######################################################################################################################
 
@@ -137,12 +143,8 @@ p_inds_val = None
 n_inds_val = None
 
 pts_sample_tr = pts_sample[train_indices]
-dSample_tr = dSample[train_indices]
-nSample_tr = nSample[train_indices]
 nnSample_tr = nnSample[train_indices]
 pts_sample_vl = pts_sample[val_indices]
-dSample_vl = dSample[val_indices]
-nSample_vl = nSample[val_indices]
 nnSample_vl = nnSample[val_indices]
 
 train_size = pts_sample_tr.shape[0]
@@ -152,36 +154,51 @@ num_epochs = int((config.num_iters / train_size) * config.batch_size)
 total_iters = 0
 idxs = list(range(train_size))
 
+
+
+
 ######################################################################################################################
 # Start training
 
-for ep in tqdm(range(num_epochs)):
+total_iters = start_epoch * (train_size // config.batch_size)
+
+start_epoch = start_epoch + 1
+
+for ep in range(start_epoch, num_epochs):
     np.random.shuffle(idxs)
-    for it in range(0, train_size, config.batch_size):
+    for it in tqdm(range(0, train_size, config.batch_size)):
         if (total_iters % config.save_after == 0):
-            torch.save(net.state_dict(), config.weights_path + '/' + str(it) + '.pth')
+            print("Saving weights at ", total_iters)
+            torch.save({'epoch': ep, 'net': net.state_dict(), 'opt': optim.state_dict(),
+            }, config.weights_path + '/' + str(total_iters) + '.pth')
 
         pts = pts_sample_tr[idxs[it:it+config.batch_size]]
         nn = nnSample_tr[idxs[it:it+config.batch_size]]
-        dist = dSample_tr[idxs[it:it+config.batch_size]]
-        normal = nSample_tr[idxs[it:it+config.batch_size]]
-        loss_pts, loss_normal, loss_dist = train_val_step(net, pts, nn, dist, normal, optim)
+
+        # Also include surface points in every iteration
+        surf_inds = np.random.choice(np.arange(point_cloud.shape[0]), int(config.batch_size))
+        p_surface = point_cloud[surf_inds]
+        pts = np.concatenate((pts, p_surface), axis=0)
+        nn = np.concatenate((nn, p_surface), axis=0)
+
+        loss_pts = train_val_step(net, pts, nn, optim)
 
         # Log losses to tensorboard
         train_writer.add_scalar('loss_point', loss_pts, total_iters)
 
         if (total_iters % config.val_after == 0):
             # validate
-            print("train loss point:", loss_pts)
+            train_loss_pts = loss_pts
 
             net.eval()
 
             with torch.no_grad():
-                loss_pts, loss_normal, loss_dist = train_val_step(net, pts_sample_vl, nnSample_vl, dSample_vl, nSample_vl)
+                loss_pts = train_val_step(net, pts_sample_vl, nnSample_vl)
 
                 # Log losses to tensorboard
                 val_writer.add_scalar('loss_point', loss_pts, total_iters)                            
-                print("val loss point:", loss_pts)
+                print("Epoch [%d/%d]: Train loss point: %f | Val loss point: %f" % \
+                    (ep, num_epochs, train_loss_pts, loss_pts))
                 
             net.train()
         

@@ -26,16 +26,16 @@ args = parser.parse_args()
 
 config.exp_name = args.exp_name
 config.omega = args.omega
+config.make_paths()
 
-config.videos_path = './single_shape_csp/videos/' + args.exp_name
-
-weights_path = './single_shape_csp/weights/' + args.exp_name + '/' + str(args.model_iter) + '.pth'
+weights_path = config.weights_path + '/' + str(args.model_iter) + '.pth'
 
 if not os.path.exists(config.videos_path):
     os.system('mkdir ' + config.videos_path)
 
+print('Loading model from ',  weights_path)
 net = model.Net().cuda()
-net.load_state_dict(torch.load(weights_path))
+net.load_state_dict(torch.load(weights_path)['net'])
 net.eval()
 
 #GT maps

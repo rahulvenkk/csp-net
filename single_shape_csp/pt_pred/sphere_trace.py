@@ -3,7 +3,6 @@ import imageio
 import faiss
 import torch
 from torch.nn import functional as F
-from train_utils import get_jac_normals_torch
 import transforms3d
 import math
 import cv2
@@ -356,7 +355,7 @@ def march_along_rays(model, xyz_world, rays, max_iters=10000, thresh=0.01):
         
         changed = valid ^ old_valid        
         if changed.any():
-            normals_pred_jac = get_jac_normals_torch(xyz_world_cpy[changed], net, 1e-7)[0]
+            normals_pred_jac = get_jac_normals_torch(xyz_world_cpy[changed], net)[0]
             dists_ = get_distance(net, xyz_world_cpy[changed])
         
             cos_thetas =  torch.abs(torch.sum(normals_pred_jac*rays[changed], -1, keepdim=True))
@@ -397,10 +396,11 @@ def march_along_rays(model, xyz_world, rays, max_iters=10000, thresh=0.01):
         ct += 1
 
     normals_pred = net.get_normal(xyz_world_cpy_back, net(xyz_world_cpy_back))
-    reverse = torch.sum(normals_pred * rays, 1) > 0
+    to_reverse = torch.sum(normals_pred * rays, 1) > 0
+    normals_pred[to_reverse] *= -1
     normals_pred[valid] = 0.1
 
-    normals_pred_jac, bwd_time, fwd_time = get_jac_normals_torch(xyz_world_cpy, net, eps=1e-7)
+    normals_pred_jac = get_jac_normals_torch(xyz_world_cpy, net, eps=1e-7)
     to_reverse_jac = torch.sum(normals_pred_jac * rays, 1) > 0
     normals_pred_jac[to_reverse_jac] *= -1
     normals_pred_jac[valid] = 0.1
@@ -416,6 +416,51 @@ def march_along_rays(model, xyz_world, rays, max_iters=10000, thresh=0.01):
     dist_acc_naive = dist_acc_naive.detach().cpu().numpy()
     
     return xyz_world, dist_acc, dist_acc_naive, normals_pred, normals_pred_jac
+
+def get_jac_normals_torch(input_points, net, eps=1e-7):
+    """
+    get numerically obtained normals for the given input points in world coordinates
+
+    Parameters
+    ----------
+    input_points : pytorch tensor [N, 3]
+         points for which normals are to be estimated
+    net : torch nn.Module
+        model (sDF + nF)
+    eps : float
+        some small number
+
+    Returns
+    -------
+    norm_xyz: pytorch tensor [N, 3]
+        estimated normals
+    """
+    is_training = net.training
+    net.eval()
+    with torch.enable_grad():
+        input_points = input_points.detach().cpu().numpy()
+        X = torch.from_numpy(input_points).cuda().float().requires_grad_(True)
+        
+        # grad_f1, grad_f2, grad_f3
+        grad = get_batch_jacobian(net, X, 3)
+        Vh = np.stack([np.linalg.svd(J.cpu().numpy())[-1] for J in grad])
+        normals_pred = np.cross(Vh[:, 0], Vh[:, 1])
+        normals_pred = normals_pred / np.sqrt((normals_pred ** 2).sum(1, keepdims=True))
+        
+    net.train(is_training)
+        
+    return torch.Tensor(normals_pred).cuda()
+
+def get_batch_jacobian(net, x, noutputs):
+    x = x.unsqueeze(1) # b, 1 ,in_dim
+    n = x.size()[0]
+    x = x.repeat(1, noutputs, 1) # b, out_dim, in_dim
+    x.requires_grad_(True)
+    input_val = torch.eye(noutputs).reshape(1,noutputs, noutputs).repeat(n, 1, 1).cuda()
+    y = net(x)
+    grad = torch.autograd.grad((y*input_val).sum(), [x])[0]
+
+    return grad
 
 def get_ray_traced_images(trimesh_mesh, ray_dirs, pixel_points_world, num_views, \
                           batch_size_eval=100002, res=256, direct=False):
@@ -795,7 +840,6 @@ def evaluate_normals_depths(net, trimesh_mesh, num_views, thresh, videos_path, m
 
     for it in range(num_views):
         img = np.concatenate([imgs_depth_pred_naive[it], imgs_depth_pred[it], imgs_depth_gt[it]], 1)
-        final_depth_imgs.append(img)
         
         #Lighting
         normal_map_jac = normalize(imgs_normal_pred_jac[it])
@@ -830,7 +874,7 @@ def evaluate_normals_depths(net, trimesh_mesh, num_views, thresh, videos_path, m
            
         lighted_jac[bg_mask] = 1
         lighted_pred[bg_mask] = 1
-        lighted_gt[valid_gt] = 1
+        lighted_gt[bg_mask_gt] = 1
     
         gt.append(lighted_gt)
 
