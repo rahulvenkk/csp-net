@@ -14,6 +14,7 @@ config = config.Config()
 
 parser = argparse.ArgumentParser(description='Get multi view depth and normal maps')
 parser.add_argument('-ename', '--exp_name', type=str)
+parser.add_argument('-infile', '--infile', type=str, help='Input 3D shape as .off file')
 parser.add_argument('-model_iter', '--model_iter', type=int)
 parser.add_argument('-num_views', '--num_views', type=int)
 parser.add_argument('-reverse', '--reverse', action='store_true')
@@ -25,13 +26,14 @@ parser.add_argument('-omega', '--omega', type=float)
 args = parser.parse_args()
 
 config.exp_name = args.exp_name
+config.mesh_file_path = args.infile
 config.omega = args.omega
 config.make_paths()
 
 weights_path = config.weights_path + '/' + str(args.model_iter) + '.pth'
 
 if not os.path.exists(config.videos_path):
-    os.system('mkdir ' + config.videos_path)
+    os.system('mkdir -p ' + config.videos_path)
 
 print('Loading model from ',  weights_path)
 net = model.Net().cuda()

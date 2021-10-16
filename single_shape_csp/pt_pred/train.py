@@ -55,11 +55,12 @@ print("Nearest neighbour creation done")
 '''
 Create path for saving weights
 '''
+print(config.weights_path)
 if not os.path.exists(config.weights_path):
-    os.system('mkdir ' + config.weights_path)
+    os.system('mkdir -p ' + config.weights_path)
 
 if not os.path.exists(config.videos_path):
-    os.system('mkdir ' + config.videos_path)
+    os.system('mkdir -p ' + config.videos_path)
 
 ######################################################################################################################
 
