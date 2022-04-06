@@ -46,4 +46,4 @@ The generated files can be found at `single_shape_csp/videos/EXP_NAME`.
 
 ## Multi-shape CSP
 
-Coming Soon!
+Multi-shape CSP code can be found in [surface_recon](https://github.com/rahulvenkk/csp-net/tree/main/surface_recon).
