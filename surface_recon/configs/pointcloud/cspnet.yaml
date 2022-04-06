@@ -1,0 +1,56 @@
+method: cspnet
+data:
+  classes: ['03001627']
+  input_type: null
+  path: data/ShapeNet_full
+  points_file: points_non_watertight.npz
+  pointcloud_file: pointcloud_non_watertight.npz
+  pointcloud_n: 5000
+#   pointcloud_noise: 0.00005
+  pointcloud_noise: 0.000000000000005
+  points_subsample: 100
+model:
+  encoder: pointnet_local_pool
+  encoder_kwargs:
+    hidden_dim: 32
+    plane_type: ['xz', 'xy', 'yz']
+    plane_resolution: 64
+    grid_resolution: 32
+    unet: True
+    unet_kwargs:
+      depth: 4
+      merge_mode: concat
+      start_filts: 32
+  decoder: simple_local
+  decoder_kwargs:
+    sample_mode: bilinear # bilinear / nearest
+    hidden_size: 512
+    n_blocks: 3
+  eps_udf: 0.01
+  udf_res: 4
+  c_dim: 32
+training:
+  load_dir_: out/pointcloud/cspnet
+  load_optim: True
+  delete_logs: True
+  out_dir:  out/pointcloud/cspnet
+  visualize_every: 2000
+  checkpoint_every: 5000
+  validate_every: 2000
+  batch_size: 32
+  print_every: 5000
+  backup_every: 10000
+  max_ram: 1000
+  n_internal_epochs: 2
+  max_val: 5
+  model_selection_metric: normal
+  model_selection_mode: maximize
+test:
+  threshold: 0.035
+  eval_mesh: true
+  eval_pointcloud: false
+generation:
+  batch_size: 100000
+  refine: false
+  n_x: 128
+  n_z: 1
