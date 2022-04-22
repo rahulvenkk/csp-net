@@ -88,3 +88,6 @@ tensorboard --logdir ./logs --port 6006
 where you replace `OUTPUT_DIR` with the respective output directory.
 
 For available training options, please take a look at `configs/default.yaml`.
+
+## Acknowledgement
+This codebase is built upon the [Occupancy Networks](https://github.com/autonomousvision/occupancy_networks).
