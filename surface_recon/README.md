@@ -72,6 +72,7 @@ python eval.py --config CONFIG.yaml
 The script will generate Chamfer distance, Normal Cosine Distance
 (fwd. and jac.), Sillhouette IoU and Depth Error.
 
+Pretrained Model: [link](https://huggingface.co/tejank10/cspnet/resolve/main/model_best.pt)
 
 ### Training
 To train a new network from scratch, run
