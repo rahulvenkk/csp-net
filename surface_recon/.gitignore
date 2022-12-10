@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -129,15 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-=======
 output
 out
 data
-=======
-/output
-/out
-/data
->>>>>>> d93bc1f (Add missing files.)
 build
 .vscode
 .pytest_cache
@@ -151,5 +143,3 @@ build
 /im2mesh/utils/libmcubes/mcubes.cpp
 /im2mesh/utils/libsimplify/simplify_mesh.cpp
 /im2mesh/utils/libsimplify/build
-
->>>>>>> b72f6fc (Initial commit.)
